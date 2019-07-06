@@ -10,6 +10,7 @@ use nom::{
     combinator::map_res,
     combinator::opt,
     error::{context, convert_error, ErrorKind, ParseError, VerboseError},
+    multi::many0,
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
@@ -32,6 +33,10 @@ fn line_delimiter_parser(i: &str) -> IResult<&str, &str> {
     tag("\n")(i) // will consume bytes if the input begins with "abcd"
 }
 
+fn description_continues(i: &str) -> IResult<&str, &str> {
+    tag(" ")(i) // will consume bytes if the input begins with "abcd"
+}
+
 fn template_parser(i: &str) -> IResult<&str, &str> {
     tag("Template")(i) // will consume bytes if the input begins with "abcd"
 }
@@ -42,6 +47,10 @@ fn type_parser(i: &str) -> IResult<&str, &str> {
 
 fn parser_default_key(i: &str) -> IResult<&str, &str> {
     tag("Default")(i) // will consume bytes if the input begins with "abcd"
+}
+
+fn parser_key_description(i: &str) -> IResult<&str, &str> {
+    tag("Description")(i) // will consume bytes if the input begins with "abcd"
 }
 
 fn value_type_select(i: &str) -> IResult<&str, &str> {
@@ -118,6 +127,17 @@ fn default_line_parser(i: &str) -> IResult<&str, Option<(&str, &str, &str, &str)
         keyval_parser,
         line_delimiter_parser,
     )))(i)?;
+    Ok(red)
+}
+
+fn line_parser_description(i: &str) -> IResult<&str, (&str, &str, &str, &str, Vec<(&str, &str)>)> {
+    let red = tuple((
+        parser_key_description,
+        key_val_delimiter_parser,
+        keyval_parser,
+        line_delimiter_parser,
+        many0(tuple((description_continues, keyval_parser))),
+    ))(i)?;
     Ok(red)
 }
 
@@ -260,4 +280,24 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_line_parser_description() {
+        // This assert would fire and test will fail.
+        // Please note, that private functions can be tested too!
+        assert_eq!(
+            line_parser_description(
+                "Description: for internal use; can be preseeded\n some more description"
+            ),
+            Ok((
+                "",
+                (
+                    "Description",
+                    ": ",
+                    "for internal use; can be preseeded",
+                    "\n",
+                    vec![(" ", "some more description")]
+                )
+            ))
+        );
+    }
 }

@@ -3,6 +3,7 @@ extern crate nom;
 
 use nom::{
     branch::alt,
+    bytes::complete::is_not,
     bytes::complete::tag,
     bytes::complete::{escaped, take_while, take_while_m_n},
     character::complete::not_line_ending,
@@ -11,6 +12,7 @@ use nom::{
     combinator::opt,
     error::{context, convert_error, ErrorKind, ParseError, VerboseError},
     multi::many0,
+    multi::separated_list,
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
@@ -33,6 +35,10 @@ fn line_delimiter_parser(i: &str) -> IResult<&str, &str> {
     tag("\n")(i) // will consume bytes if the input begins with "abcd"
 }
 
+fn seperated_list_delimeter(i: &str) -> IResult<&str, &str> {
+    tag(", ")(i) // will consume bytes if the input begins with "abcd"
+}
+
 fn description_continues(i: &str) -> IResult<&str, &str> {
     tag(" ")(i) // will consume bytes if the input begins with "abcd"
 }
@@ -43,6 +49,10 @@ fn template_parser(i: &str) -> IResult<&str, &str> {
 
 fn type_parser(i: &str) -> IResult<&str, &str> {
     tag("Type")(i) // will consume bytes if the input begins with "abcd"
+}
+
+fn parser_key_choices(i: &str) -> IResult<&str, &str> {
+    tag("Choices")(i) // will consume bytes if the input begins with "abcd"
 }
 
 fn parser_default_key(i: &str) -> IResult<&str, &str> {
@@ -128,6 +138,17 @@ fn default_line_parser(i: &str) -> IResult<&str, Option<(&str, &str, &str, &str)
         line_delimiter_parser,
     )))(i)?;
     Ok(red)
+}
+
+fn line_parser_choices(i: &str) -> IResult<&str, Vec<&str>> {
+    let (i, (_, _, blue, _)) = tuple((
+        parser_key_choices,
+        key_val_delimiter_parser,
+        keyval_parser,
+        //separated_list(seperated_list_delimeter, is_not(",")),
+        line_delimiter_parser,
+    ))(i)?;
+    Ok((i, vec![blue]))
 }
 
 fn line_parser_description(i: &str) -> IResult<&str, (&str, &str, &str, &str, Vec<(&str, &str)>)> {
@@ -257,6 +278,21 @@ mod tests {
         assert_eq!(
             line_parser_type("Type: password\n"),
             Ok(("", ("Type", "password")))
+        );
+    }
+
+    #[test]
+    fn test_line_parser_choices() {
+        // This assert would fire and test will fail.
+        // Please note, that private functions can be tested too!
+        assert_eq!(
+            line_parser_choices(
+                "Choices: Root Only, Console Users Only, Anybody\nType: password\n"
+            ),
+            Ok((
+                "Type: password\n",
+                vec!["Root Only", "Console Users Only", "Anybody"]
+            ))
         );
     }
 
